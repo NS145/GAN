@@ -1,49 +1,43 @@
 import streamlit as st
-import pickle
 import numpy as np
 import tensorflow as tf
-from PIL import Image
+import joblib
 import matplotlib.pyplot as plt
 
-# Load the trained model from the pickle file
-model_filename = "autoencoder_model.pkl"
-with open(model_filename, "rb") as f:
-    deep_autoencoder_model = pickle.load(f)
+# Load the trained autoencoder model
+model = joblib.load('deep_autoencoder_model.pkl')
 
-# Function to preprocess the input image
+# Function to normalize and reshape the input image
 def preprocess_image(image):
-    image = image.convert("L")  # Convert to grayscale
-    image = image.resize((28, 28))  # Resize to 28x28
-    input_image = np.array(image) / 255.0  # Normalize
-    return input_image.flatten().reshape(1, 784)  # Flatten
+    image = np.array(image, dtype=np.float32) / 255.0
+    return image.reshape((1, 784))  # Reshape to the input shape of the model
 
-# Function to display images
-def display_results(input_image, decoded_image):
-    fig, axes = plt.subplots(1, 2, figsize=(10, 5))
-    
-    axes[0].imshow(input_image.reshape(28, 28), cmap='gray')
-    axes[0].set_title('Input Image')
-    axes[0].axis('off')
-    
-    axes[1].imshow(decoded_image.reshape(28, 28), cmap='gray')
-    axes[1].set_title('Decoded Image')
-    axes[1].axis('off')
-    
-    st.pyplot(fig)
+# Streamlit UI
+st.title("MNIST Deep Autoencoder")
+st.write("Upload an image of a digit (0-9):")
 
-# Streamlit application layout
-st.title("MNIST Autoencoder")
-st.write("Upload an image of a handwritten digit (28x28 pixels) to see its encoding and decoding.")
-
-# Image upload
+# Upload image
 uploaded_file = st.file_uploader("Choose an image...", type=["png", "jpg", "jpeg"])
+
 if uploaded_file is not None:
-    # Load and preprocess the uploaded image
-    input_image = preprocess_image(Image.open(uploaded_file))
+    # Load the image
+    image = tf.keras.preprocessing.image.load_img(uploaded_file, color_mode='grayscale', target_size=(28, 28))
+    image = tf.keras.preprocessing.image.img_to_array(image)
+    
+    # Preprocess the image
+    processed_image = preprocess_image(image)
+    
+    # Predict using the autoencoder
+    reconstructed_image = model.predict(processed_image)
 
-    # Get the decoded output
-    decoded_output = deep_autoencoder_model.predict(input_image)
+    # Display the original and reconstructed images
+    st.subheader("Original Image")
+    st.image(image.reshape(28, 28), caption="Uploaded Image", use_column_width=True, clamp=True)
 
-    # Display results
-    display_results(input_image, decoded_output)
+    st.subheader("Reconstructed Image")
+    st.image(reconstructed_image.reshape(28, 28), caption="Reconstructed Image", use_column_width=True, clamp=True)
 
+    # Optionally, show the encoded representation
+    encoded_output = model.layers[1](processed_image)  # Get encoder output
+    st.subheader("Encoded Output")
+    st.write(encoded_output)
